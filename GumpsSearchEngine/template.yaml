@@ -5,42 +5,109 @@ Description: >
 
   Sample SAM Template for GumpsSearchEngine
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
-Globals:
-  Function:
-    Timeout: 3
-    Tracing: Active
-  Api:
-    TracingEnabled: True
 
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  DynamoIndexSQS:
+        Type: AWS::SQS::Queue
+
+  DynamoIndexSNS:
+    Type: AWS::SNS::Topic
+    Properties:  
+      Subscription: 
+      - Endpoint: !GetAtt DynamoIndexSQS.Arn
+        Protocol: "sqs"
+
+  DynamoIndexSnsSqsPolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      Queues:
+        - !Ref DynamoIndexSQS
+      PolicyDocument:
+        Statement:
+          - Sid: SNSMessageSQS
+            Effect: Allow
+            Principal:
+              Service:
+                - sns.amazonaws.com
+            Action: 
+              - "sqs:SendMessage"
+              - "SQS:ReceiveMessage"
+            Resource:
+              - !GetAtt DynamoIndexSQS.Arn
+
+
+  DynamoIndexSnsPolicy:
+    Type: AWS::SNS::TopicPolicy
     Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: S3Buckets
+            Effect: Allow
+            Principal:
+              Service:
+                - s3.amazonaws.com
+            Action:
+              - "sns:Publish"
+              - "SNS:Subscribe"
+              - "SNS:Publish"
+            Resource:
+              - !Ref DynamoIndexSNS
+
+      Topics: 
+        - !Ref DynamoIndexSNS
+        
+  ElasticStreamFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          ES_ENDPOINT: https://search-gumpsimagesearch-jz7atpxc4ifyh63kaahwxk4sbu.us-east-1.es.amazonaws.com
+      Architectures: [arm64]
+      Timeout: 8
       PackageType: Image
-      Architectures:
-        - x86_64
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageIndexDynamoTableDB
+        - ElasticsearchHttpPostPolicy:
+            DomainName: gumpsimagesearch
       Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+        DDBEvent:
+          Type: DynamoDB
           Properties:
-            Path: /hello
-            Method: get
+            Stream: 
+              !GetAtt ImageIndexDynamoTableDB.StreamArn  
+            StartingPosition: TRIM_HORIZON
+            Enabled: true
     Metadata:
       Dockerfile: Dockerfile
-      DockerContext: ./hello_world
+      DockerContext: ./ElasticStream
       DockerTag: python3.8-v1
 
-Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  DynamoIndexFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 5
+      Architectures: [arm64]
+      EventInvokeConfig:
+        MaximumRetryAttempts: 1
+      PackageType: Image
+      Events:
+        SqsJobQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt DynamoIndexSQS.Arn
+            BatchSize: 1
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              !GetAtt DynamoIndexSQS.QueueName
+        - S3CrudPolicy: 
+            BucketName: 
+              !Ref ResizeImageforNSS3
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageIndexDynamoTableDB
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./DynamoIndexFunction
+      DockerTag: python3.8-v1
+        

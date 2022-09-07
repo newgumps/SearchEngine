@@ -1,0 +1,11 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "SearchEngine"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-106au7cn3zwxv"
+s3_prefix = "SearchEngine"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = ["ElasticStreamFunction=570685116845.dkr.ecr.us-east-1.amazonaws.com/searchengine67204af4/elasticstreamfunction9feaf008repo", "DynamoIndexFunction=570685116845.dkr.ecr.us-east-1.amazonaws.com/searchengine67204af4/dynamoindexfunction0fa0aec3repo"]
