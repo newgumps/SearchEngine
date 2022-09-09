@@ -55,7 +55,7 @@ Resources:
 
       Topics: 
         - !Ref DynamoIndexSNS
-        
+
   ElasticStreamFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -111,3 +111,25 @@ Resources:
       DockerContext: ./DynamoIndexFunction
       DockerTag: python3.8-v1
         
+  ImageIndexDynamoTableDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: GumpsSearchEngine
+      StreamSpecification: 
+        StreamViewType: NEW_AND_OLD_IMAGES
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: unique_index
+          KeyType: HASH
+      AttributeDefinitions:
+        - 
+          AttributeName: unique_index
+          AttributeType: S
+
+  ResizeImageforNSS3: 
+    Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Topic: !Ref DynamoIndexSNS
+            Event: s3:ObjectCreated:*
