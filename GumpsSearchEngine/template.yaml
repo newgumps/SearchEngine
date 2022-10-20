@@ -70,14 +70,7 @@ Resources:
             TableName: !Ref ImageIndexDynamoTableDB
         - ElasticsearchHttpPostPolicy:
             DomainName: gumpsimagesearch
-      Events:
-        DDBEvent:
-          Type: DynamoDB
-          Properties:
-            Stream: 
-              !GetAtt ImageIndexDynamoTableDB.StreamArn  
-            StartingPosition: TRIM_HORIZON
-            Enabled: true
+
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ./ElasticStream
